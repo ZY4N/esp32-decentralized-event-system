@@ -40,7 +40,7 @@ inline constexpr auto private_key = {private_keys[sender_id]};
 
 inline constexpr auto public_keys = std::array{{{public_keys}}};
 """
-        with open(f"../main/include/keys/event_keys_{sender_id}.hpp", "w") as text_file:
+        with open(f"main/include/keys/event_keys_{sender_id}.hpp", "w") as text_file:
             text_file.write(header)
 
 
