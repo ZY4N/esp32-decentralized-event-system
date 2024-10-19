@@ -135,8 +135,7 @@ std::error_code signature_engine::sign(
 
 	feed_the_beast();
 
-	int shit = 0;
-	if ((shit = mbedtls_ecdsa_sign(
+	if ((mbedtls_ecdsa_sign(
 		&m_ecdsa_ctx.MBEDTLS_PRIVATE(grp),
 		&r, &s,
 		&m_ecdsa_ctx.MBEDTLS_PRIVATE(d),
