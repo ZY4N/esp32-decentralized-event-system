@@ -1,0 +1,70 @@
+menu "Node Configuration"
+
+	config AP_SSID
+		string "The SSID of the wifi AP"
+		default "event test wifi"
+		help
+			The SSID of the wifi AP used for communication between nodes.
+
+	config AP_PASSWORD
+		string "The password of the settings WAP (change before using)"
+		default "dAOxHZY6vD2cGuMtUjWMqXx3mnGZs6Nw"
+		help
+			The password of the Wireless-Access-Point created by the ESP
+			for the initial setup.
+
+	config PASSWORD_MAX_LEN
+		int "maximun length of password string"
+		default 32
+
+	config BROADCAST_PORT
+		int "broadcast port"
+		default 34000
+		help
+			The port over which UDP broadcast messages are sent and redeived.
+
+	config CHALLENGE_PORT
+		int "Challenge connection port"
+		default 34001
+		help
+			The port over which TCP challenges are sent and redeived.
+
+	config TCP_LISTEN_TIMEOUT_MS
+		int "TCP listen timeout ms"
+		default 1000
+		help
+			Maximum time waited for TCP challenge connection.
+
+	config TCP_COMMUNICATON_RETRIES
+		int "Number of TCP communication retries"
+		default 5
+		help
+			The maximum number of retries a TCP send/receive is given when temporary errors occur.
+
+	config TEST_TASK
+		bool "run test task"
+		help
+			Decides whether the test task is run.
+
+	config WIFI_AP_TASK
+		bool "run wifi ap task"
+		help
+			Decides whether the wifi ap task is run.
+
+	config SENDER_NODE_TASK
+		bool "run sender node task"
+		help
+			Decides whether the sender node task is run.
+
+	config RECEIVER_NODE_TASK
+		bool "run receiver node task"
+		help
+			Decides whether the receiver node task is run.
+
+	config SENDER_ID
+		int "Sender ID"
+		default 0
+		help
+			The sender id used with regards to signing
+
+endmenu
