@@ -19,20 +19,7 @@ std::error_code network_event_handler<Event, TrustedCount>::init(
 	this->~network_event_handler();
 
 	m_sender_id = sender_id;
-
-	if (public_keys.size() != TrustedCount) {
-		return make_error_code(codes::wrong_number_of_public_keys);
-	}
-
-	feed_the_beast();
-
-	for (ztu::usize i{}; i != TrustedCount; ++i) {
-		const auto public_key = public_keys[i];
-		if (public_key.size() != signature_engine::public_key_size) {
-			return make_error_code(codes::wrong_public_key_size);
-		}
-		std::copy(public_key.begin(), public_key.end(), m_public_keys[i].begin());
-	}
+	m_public_keys = public_keys;
 
 	feed_the_beast();
 
