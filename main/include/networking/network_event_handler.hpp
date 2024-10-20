@@ -41,7 +41,7 @@ public:
 
 	[[nodiscard]] inline std::error_code send(Event event, ztu::u32 max_retries);
 
-	[[nodiscard]] inline std::error_code await(std::span<const Event> events, Event& received_event, ztu::u32 max_retries);
+	[[nodiscard]] inline std::error_code await(std::span<const Event> events, Event& received_event);
 
 
 
@@ -144,6 +144,8 @@ protected:
 		std::array<ztu::u8, BufferSize>& msg_buffer,
 		ztu::u32 max_retries
 	);
+
+	std::error_code set_tcp_communication_timeout(ztu::u32 timeout_ms);
 
 	static void inline log_error_code(const std::error_code &e);
 

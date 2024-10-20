@@ -36,22 +36,32 @@ std::error_code sender_node_task() {
 		ESP_LOGI(TAG, "Event handler initialized.");
 	}
 
-	if ((error = event_handler.send(simple_event::first_event, 1))) {
-		return error;
-	} else {
-		ESP_LOGI(TAG, "'first_event' sent.");
+	while (true) {
+		for (const auto event : {
+			simple_event::first_event,
+			simple_event::second_event,
+			simple_event::three_event,
+			simple_event::four_event,
+			simple_event::five_event,
+			simple_event::six_event,
+			simple_event::seven_event,
+			simple_event::eight_event,
+			simple_event::nine_event,
+			simple_event::ten_event
+		}) {
+			
+			const auto event_number = static_cast<int>(event) + 1;
+			ESP_LOGI(TAG, "Sending event %d.", event_number);
+			if ((error = event_handler.send(event, 1))) {
+				ESP_LOGE(TAG, "Error while sending event %d: [%s] %s", event_number, error.category().name(), error.message().c_str());
+			} else {
+				ESP_LOGI(TAG, "Sent event %d.", event_number);
+			}
+			vTaskDelay((310 / portTICK_PERIOD_MS) * 2 * event_number);
+		}
+		ESP_LOGI(TAG, "All events sent!!!");
 	}
 
-	const auto events = std::array{ simple_event::second_event };
-	simple_event received_event;
-
-	if ((error = event_handler.await(events, received_event, 10))) {
-		return error;
-	} else {
-		ESP_LOGI(TAG, "'second_event' received.");
-	}
-
-	ESP_LOGI(TAG, "Success!!");
 
 	return {};
 }

@@ -71,6 +71,7 @@ std::error_code network_event_handler<Event, TrustedCount>::set_mode(mode new_mo
 					return error;
 
 				feed_the_beast();
+
 				break;
 			default:
 				m_event_socket.~udp_socket();
@@ -101,7 +102,7 @@ std::error_code network_event_handler<Event, TrustedCount>::send(Event event, zt
 	auto tries_left = 1 + max_retries;
 
 	do {
-		if (is_error(ec = send_event(event_id, 10))) { // TODO find better number
+		if (is_error(ec = send_event(event_id, CONFIG_UDP_COMMUNICATON_RETRIES))) {
 			switch (ec) {
 				using enum codes;
 				case ran_out_of_tries:
@@ -111,6 +112,7 @@ std::error_code network_event_handler<Event, TrustedCount>::send(Event event, zt
 			}
 		}
 		
+		ztu::u32 listen_timeout = CONFIG_TCP_INITIAL_LISTEN_TIMEOUT_MS;
 
 		// Wait for challenges
 		for (ztu::usize i{}; i <= TrustedCount; ++i) {
@@ -118,20 +120,32 @@ std::error_code network_event_handler<Event, TrustedCount>::send(Event event, zt
 			socket_address::any_ip_t address;
 			socket_address::ip_size_t address_len;
 
-			if (is_error(ec = listen_for_challengers(address, address_len, CONFIG_TCP_LISTEN_TIMEOUT_MS))) {
-				switch (ec) {
-					using enum codes;
-					case temporary_listening_error:
+			if (is_error(ec = listen_for_challengers(address, address_len, listen_timeout))) {
+				if (ec == codes::temporary_listening_error) {
+					if (listen_timeout == CONFIG_TCP_INITIAL_LISTEN_TIMEOUT_MS) {
+						// If no one answered after the initial timeout,
+						// it is assumed that no one will answer.
+						// -> If retries left, event will be resend
+						break;
+					} else {
 						continue;
-					default:
-						return make_error_code(ec);
+					}
+				} else {
+					return make_error_code(ec);
 				}
 			}
+
+			// Reduce timeout as most connections should be queued by now.
+			listen_timeout = CONFIG_TCP_QUEUED_LISTEN_TIMEOUT_MS;
 
 			const auto ip_str_opt = socket_address::any_ip_to_str(address);
 			ESP_LOGI(TAG, "Receiving challenge from %s",
 				ip_str_opt ? ip_str_opt.value().data() : "<malformed address>"
 			);
+
+			if (const auto e = set_tcp_communication_timeout(CONFIG_TCP_COMMUNICATON_TIMEOUT)) {
+				return e; // TODO change error
+			}
 
 			nonce_t challenge_nonce;
 			if (is_error(ec = receive_challenge(event_id, challenge_nonce, CONFIG_TCP_COMMUNICATON_RETRIES))) {
@@ -145,7 +159,7 @@ std::error_code network_event_handler<Event, TrustedCount>::send(Event event, zt
 						return make_error_code(ec);
 				}
 			}
-			
+
 			if (is_error(ec = send_signature(event_id, challenge_nonce, CONFIG_TCP_COMMUNICATON_RETRIES))) {
 				switch (ec) {
 					using enum codes;
@@ -156,6 +170,8 @@ std::error_code network_event_handler<Event, TrustedCount>::send(Event event, zt
 						return make_error_code(ec);
 				}
 			}
+
+			m_challenge_socket.disconnect();
 
 			ESP_LOGI(TAG, "Successfully answered challenge!");
 		}
@@ -168,7 +184,7 @@ std::error_code network_event_handler<Event, TrustedCount>::send(Event event, zt
 
 template<typename Event, ztu::usize TrustedCount>
 	requires std::is_enum_v<Event>
-std::error_code network_event_handler<Event, TrustedCount>::await(std::span<const Event> events, Event& received_event, ztu::u32 max_retries) {
+std::error_code network_event_handler<Event, TrustedCount>::await(std::span<const Event> events, Event& received_event) {
 	
 	if (const auto e = set_mode(mode::receiver); e) {
 		return e;
@@ -182,7 +198,7 @@ std::error_code network_event_handler<Event, TrustedCount>::await(std::span<cons
 	event_id_t event_id;
 
 try_receive_event:
-	if (is_error(ec = receive_event(events, event_id, sender_address, sender_address_len, 10))) { // TODO find better number
+	if (is_error(ec = receive_event(events, event_id, sender_address, sender_address_len, CONFIG_UDP_COMMUNICATON_RETRIES))) {
 		switch (ec) {
 			using enum codes;
 			case ran_out_of_tries:
@@ -218,6 +234,10 @@ try_connect_to_sender:
 		}
 	}
 
+	if (const auto e = set_tcp_communication_timeout(CONFIG_TCP_COMMUNICATON_TIMEOUT)) {
+		return e; // TODO change error
+	}
+
 	nonce_t challenge_nonce;
 	esp_fill_random(challenge_nonce.data(), challenge_nonce.size());
 
@@ -246,8 +266,13 @@ try_connect_to_sender:
 		}
 	}
 
+	m_challenge_socket.disconnect();
+	
+	received_event = static_cast<Event>(event_id);
+
 	return {};
 }
+
 
 
 template<typename Event, ztu::usize TrustedCount>
@@ -547,9 +572,13 @@ network_event_handler_error::codes network_event_handler<Event, TrustedCount>::c
 
 	auto tries_left = 1 + max_retries;
 
+	// Choose a timeout that allows waiting for the case
+	// of all other nodes connecting before this one.
+	constexpr auto timeout_ms = CONFIG_CHALLNGE_TIME_PER_NODE * TrustedCount;
+
 	do {
 		feed_the_beast();
-		if ((error = m_challenge_socket.connect(socket_address::to_generic_ptr(address), address_len))) {
+		if ((error = m_challenge_socket.connect(socket_address::to_generic_ptr(address), address_len, timeout_ms))) {
 			
 			log_error_code(error);
 
@@ -696,6 +725,7 @@ network_event_handler_error::codes network_event_handler<Event, TrustedCount>::c
 
 	do {
 		feed_the_beast();
+		
 		if ((error = m_challenge_socket.send(to_be_sent))) {
 
 			log_error_code(error);
@@ -746,6 +776,7 @@ network_event_handler_error::codes network_event_handler<Event, TrustedCount>::c
 		feed_the_beast();
 		if ((error = m_challenge_socket.receive(to_be_received))) {
 
+			ESP_LOGI("RECV", "Receive (%u/%u) bytes.", msg_buffer.size() - to_be_received.size(), msg_buffer.size());
 			log_error_code(error);
 
 			if (error.category() == std::generic_category()) {
@@ -777,8 +808,26 @@ network_event_handler_error::codes network_event_handler<Event, TrustedCount>::c
 
 template<typename Event, ztu::usize TrustedCount>
 	requires std::is_enum_v<Event>
+std::error_code network_event_handler<Event, TrustedCount>::set_tcp_communication_timeout(
+	const ztu::u32 timeout_ms
+) {
+	// set timeout to limit the time one connection can block the node.
+	if (const auto e = m_challenge_socket.set_send_timeout(timeout_ms); e) {
+		return e;
+	}
+
+	if (const auto e = m_challenge_socket.set_receive_timeout(timeout_ms); e) {
+		return e;
+	}
+
+	return {};
+}
+
+
+template<typename Event, ztu::usize TrustedCount>
+	requires std::is_enum_v<Event>
 void network_event_handler<Event, TrustedCount>::log_error_code(
 	const std::error_code &e
 ) {
-	ESP_LOGE(TAG, "[%s]: %s", e.category().name(), e.message().c_str());
+	ESP_LOGW(TAG, "[%s]: %s", e.category().name(), e.message().c_str());
 }

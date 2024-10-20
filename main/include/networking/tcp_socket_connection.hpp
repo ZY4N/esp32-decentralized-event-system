@@ -40,6 +40,16 @@ public:
 		socket_address::ip_size_t address_len
 	);
 
+	[[nodiscard]] std::error_code connect(const socket_address::ipv4_t& address, ztu::u32 timeout_ms);
+
+	[[nodiscard]] std::error_code connect(const socket_address::ipv6_t& address, ztu::u32 timeout_ms);
+
+	[[nodiscard]] std::error_code connect(
+		socket_address::const_ip_ptr_t address,
+		socket_address::ip_size_t address_len,
+		ztu::u32 timeout_ms
+	);
+
 	/**
 	 * @brief Sends data over a connected socket.
 	 *

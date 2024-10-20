@@ -6,10 +6,16 @@
 #include "events/simple_event.hpp"
 
 #include "keys/event_keys.hpp"
+#include "driver/gpio.h"
+
 
 std::error_code receiver_node_task() {
 
 	static constexpr auto TAG = "receiver_node_task";
+	static constexpr auto led_pin = GPIO_NUM_2;
+
+	gpio_set_direction(led_pin, GPIO_MODE_OUTPUT);
+	gpio_set_level(led_pin, 0);
 
 	std::error_code error;
 
@@ -31,23 +37,36 @@ std::error_code receiver_node_task() {
 	} else {
 		ESP_LOGI(TAG, "Event handler initialized.");
 	}
-
-	const auto events = std::array{ simple_event::first_event };
+		
+	const auto events = std::array{
+		simple_event::first_event,
+		simple_event::second_event,
+		simple_event::three_event,
+		simple_event::four_event,
+		simple_event::five_event,
+		simple_event::six_event,
+		simple_event::seven_event,
+		simple_event::eight_event,
+		simple_event::nine_event,
+		simple_event::ten_event
+	};
 	simple_event received_event;
 
-	if ((error = event_handler.await(events, received_event, 10))) {
-		return error;
-	} else {
-		ESP_LOGI(TAG, "'first_event' received.");
-	}
+	while (true) {
+		if ((error = event_handler.await(events, received_event))) {
+			ESP_LOGE(TAG, "Error while receiving: [%s] %s", error.category().name(), error.message().c_str());
+		} else {
+			const auto event_number = static_cast<int>(received_event) + 1;
+			ESP_LOGI(TAG, "Received event %d.", event_number);
 
-	if ((error = event_handler.send(simple_event::second_event, 10))) {
-		return error;
-	} else {
-		ESP_LOGI(TAG, "'second_event' sent.");
+			for (int i{}; i != event_number; ++i) {
+				gpio_set_level(led_pin, 1);
+				vTaskDelay(300 / portTICK_PERIOD_MS);
+				gpio_set_level(led_pin, 0);
+				vTaskDelay(300 / portTICK_PERIOD_MS);
+			} 
+		}
 	}
-
-	ESP_LOGI(TAG, "Success!!");
 
 	return {};
 }

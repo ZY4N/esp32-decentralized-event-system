@@ -29,17 +29,47 @@ menu "Node Configuration"
 		help
 			The port over which TCP challenges are sent and redeived.
 
-	config TCP_LISTEN_TIMEOUT_MS
-		int "TCP listen timeout ms"
+	config TCP_INITIAL_LISTEN_TIMEOUT_MS
+		int "initial TCP listen timeout ms"
 		default 1000
 		help
 			Maximum time waited for TCP challenge connection.
 
+	config TCP_QUEUED_LISTEN_TIMEOUT_MS
+		int "TCP listen timeout ms after requests have been queued"
+		default 100
+		help
+			Maximum time waited for TCP challenge connection after requests have been queued by OS.
+
+	config CHALLNGE_TIME_PER_NODE
+		int "Challenge time per node"
+		default 1000
+		help
+			The approximated time need to fully answer one challenge.
+
+	config TCP_COMMUNICATON_TIMEOUT
+		int "TCP communication timeout"
+		default 300
+		help
+			The timeout for TCP sends and receives. 
+
+	config UDP_COMMUNICATON_RETRIES
+		int "Number of UDP communication retries"
+		default 3
+		help
+			The maximum number of retries a UDP send/receive is given when temporary errors occur.
+			
 	config TCP_COMMUNICATON_RETRIES
 		int "Number of TCP communication retries"
-		default 5
+		default 3
 		help
 			The maximum number of retries a TCP send/receive is given when temporary errors occur.
+
+	config EVENT_RESEND_COUNT
+		int "Number of event resends"
+		default 2
+		help
+			The number of resends for one event.
 
 	config TEST_TASK
 		bool "run test task"
